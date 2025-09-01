@@ -1,0 +1,16 @@
+
+# This file only defines dependencies - no package building
+[project]
+name = "dao-ai-parse-dependencies"
+version = "0.0.1"
+requires-python = ">=3.12"
+dependencies = [
+    "dao-ai>=0.0.13",
+    "docling>=2.48.0",
+    "langchain-text-splitters>=0.3.11",
+    "llama-index>=0.13.3",
+    "pypdf>=6.0.0",
+    "tiktoken>=0.11.0",
+    "torch>=2.8.0",
+    "transformers>=4.56.0",
+]
