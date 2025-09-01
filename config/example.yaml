@@ -6,10 +6,6 @@ schemas:
     catalog_name: nfleming                    # Unity Catalog name
     schema_name: tru_green                    # Schema within the catalog
 
-  documents_schema: &documents_schema
-    catalog_name: nfleming                    # Unity Catalog name
-    schema_name: kellanova                    # Schema within the catalog
-
 resources:
 
   llms:
@@ -34,8 +30,8 @@ resources:
           name: documents
       source_path:
         volume:
-          schema: *documents_schema
-          name: databricks-pdfs
+          schema: *tru_green_schema
+          name: documents
       checkpoint_path:
         volume:
           schema: *tru_green_schema
