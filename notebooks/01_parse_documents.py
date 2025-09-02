@@ -39,7 +39,7 @@ print(f"transformers=={version('transformers')}")
 # COMMAND ----------
 
 from pathlib import Path
-
+from rich import print as pprint
 
 dbutils.widgets.text(name="config-path", defaultValue="../config/example.yaml")
 config_path: str = dbutils.widgets.get("config-path")
@@ -47,11 +47,23 @@ config_path: str = dbutils.widgets.get("config-path")
 dbutils.widgets.text(name="vector-store-alias", defaultValue="documents_vector_store")
 vector_store_alias: str = dbutils.widgets.get("vector-store-alias")
 
+dbutils.widgets.text(name="chunk-size", defaultValue="1024")
+chunk_size: int = int(dbutils.widgets.get("chunk-size"))
+
+dbutils.widgets.text(name="chunk-overlap", defaultValue="128")
+chunk_overlap: int = int(dbutils.widgets.get("chunk-overlap"))
+
+dbutils.widgets.text(name="records-per-batch", defaultValue="10")
+records_per_batch: int = int(dbutils.widgets.get("records-per-batch"))
+
 if not Path(config_path).exists():
   raise ValueError(f"Config file not found: {config_path}")
 
-print(f"{config_path=}")
-print(f"{vector_store_alias=}")
+pprint(f"{config_path=}")
+pprint(f"{vector_store_alias=}")
+pprint(f"{chunk_size=}")
+pprint(f"{chunk_overlap=}")
+pprint(f"{records_per_batch=}")
 
 # COMMAND ----------
 
@@ -78,7 +90,7 @@ if vector_store_alias not in app.resources.vector_stores:
 
 vector_store_model: VectorStoreModel = app.resources.vector_stores[vector_store_alias]
 
-print(vector_store_model)
+pprint(vector_store_model)
 
 # COMMAND ----------
 
@@ -94,8 +106,8 @@ checkpoints_path_model.create()
 source_documents_path: Path = Path(source_path_model.full_name)
 source_checkpoint_path: Path = Path(checkpoints_path_model.full_name)
 
-print(source_documents_path)
-print(source_checkpoint_path)
+pprint(source_documents_path)
+pprint(source_checkpoint_path)
 
 # COMMAND ----------
 
@@ -114,11 +126,12 @@ spark.sql(f"""
 
 # COMMAND ----------
 
-from typing import Iterator
+from typing import Callable, Iterator
 from io import BytesIO
 import warnings
 import mimetypes
 import json
+import uuid
 
 from pyspark.sql import DataFrame
 import pyspark.sql.functions as F
@@ -174,12 +187,10 @@ def document_converter() -> DocumentConverter:
     return converter
 
 
-def parse_bytes(raw_doc_contents_bytes: bytes) -> str:
+def parse_bytes(raw_doc_contents_bytes: bytes, name: str, converter: DocumentConverter) -> str:
     try:
       stream: BytesIO = BytesIO(raw_doc_contents_bytes)
-      
-      document_stream: DocumentStream = DocumentStream(name="foo", stream=stream)
-      converter: DocumentConverter = document_converter()
+      document_stream: DocumentStream = DocumentStream(name=name, stream=stream)
       result: ConversionResult = converter.convert(document_stream)
       document: DoclingDocument = result.document
       markdown: str = document.export_to_markdown()
@@ -189,37 +200,46 @@ def parse_bytes(raw_doc_contents_bytes: bytes) -> str:
         return None
 
 
-@F.udf(T.StringType())
-def guess_mime_type(path: str) -> str:
-    return mimetypes.guess_type(path)[0]
+def guess_mime_type_factory() -> Callable[[str], str]:
+    @F.udf(T.StringType())
+    def guess_mime_type(path: str) -> str:
+        return mimetypes.guess_type(path)[0]
   
+    return guess_mime_type
 
-@F.pandas_udf("array<string>")
-def read_as_chunk(batch_iter: Iterator[pd.Series]) -> Iterator[pd.Series]:
-    # set llama2 as tokenizer to match our model size (will stay below gte 1024 limit)
-    set_global_tokenizer(
-        AutoTokenizer.from_pretrained("hf-internal-testing/llama-tokenizer")
-    )
-    # Sentence splitter from llama_index to split on sentences
-    splitter = SentenceSplitter(chunk_size=1024, chunk_overlap=128)
+def read_as_chunk_factory(chunk_size: int, chunk_overlap: int) -> Callable[[pd.Series], pd.Series]:
+    @F.pandas_udf("array<string>")
+    def read_as_chunk(batch_iter: Iterator[pd.Series]) -> Iterator[pd.Series]:
+        # set llama2 as tokenizer to match our model size (will stay below gte 1024 limit)
+        set_global_tokenizer(
+            AutoTokenizer.from_pretrained("hf-internal-testing/llama-tokenizer")
+        )
 
-    def extract_and_split(b):
-        txt = parse_bytes(b)
-        if txt is None:
-            return []
-        nodes = splitter.get_nodes_from_documents([Document(text=txt)])
-        return [n.text for n in nodes]
+        splitter: SentenceSplitter = SentenceSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+        converter: DocumentConverter = document_converter()
 
-    for x in batch_iter:
-        yield x.apply(extract_and_split)
+        def extract_and_split(b: bytes):
+            name: str = f"doc_{uuid.uuid4().hex[:8]}"
+            text: str = parse_bytes(raw_doc_contents_bytes=b, name=name, converter=converter)
+            if text is None:
+                return []
+            nodes = splitter.get_nodes_from_documents([Document(text=text)])
+            return [n.text for n in nodes]
+
+        for x in batch_iter:
+            yield x.apply(extract_and_split)
   
+    return read_as_chunk
+
 
 # COMMAND ----------
 
+from typing import Callable, Iterator
 from pyspark.sql import DataFrame
+import pandas as pd
 
 
-spark.conf.set("spark.sql.execution.arrow.maxRecordsPerBatch", 10)
+spark.conf.set("spark.sql.execution.arrow.maxRecordsPerBatch", records_per_batch)
 
 document_uri: str = "source"
 
@@ -227,6 +247,14 @@ df: DataFrame = (
     spark.readStream.format("cloudFiles")
     .option("cloudFiles.format", "BINARYFILE")
     .load(source_documents_path.as_posix())
+)
+
+guess_mime_type: Callable[[str], str] = guess_mime_type_factory()
+read_as_chunk: Callable[[Iterator[pd.Series]], Iterator[pd.Series]] = (
+    read_as_chunk_factory(
+        chunk_size=chunk_size, 
+        chunk_overlap=chunk_overlap
+    )
 )
 
 (
