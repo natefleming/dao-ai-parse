@@ -490,7 +490,7 @@ wheels = [
 
 [[package]]
 name = "dao-ai"
-version = "0.0.13"
+version = "0.0.15"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "databricks-agents" },
@@ -520,9 +520,9 @@ dependencies = [
     { name = "sqlparse" },
     { name = "unitycatalog-ai", extra = ["databricks"] },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/0a/1f/7275612daab555d48671f7c422d55d8d28f5853b97263b3de7f10f89fea6/dao_ai-0.0.13.tar.gz", hash = "sha256:fa191af8d50882fc1ae586b9a758cc830c5c33f5442d5d3b5293bd0ea073e7a7", size = 19465985, upload-time = "2025-09-01T13:00:29.273Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/bf/46/7ee191c3cc1de095b5f7e94b3bf13c07d9066b7e502a3cf44ecdd28a1e4e/dao_ai-0.0.15.tar.gz", hash = "sha256:8d342fefc3efdef10c22319f5546d38041a306762fe929cfe1d41b75dee38e61", size = 19466492, upload-time = "2025-09-02T13:29:35.076Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/11/5d/243d688d770e62e69136460abc548f863bd9bb622baa7e86f6a27e1f2ac5/dao_ai-0.0.13-py3-none-any.whl", hash = "sha256:ec133c77b81a7cdadb71d686532b11272c8c7649213a702d454aecbca0dff3ec", size = 70811, upload-time = "2025-09-01T13:00:26.998Z" },
+    { url = "https://files.pythonhosted.org/packages/b7/8d/3148ac9062a8bb612a8a94fd7bd420f38f0436cb6cb1839c1645729b4502/dao_ai-0.0.15-py3-none-any.whl", hash = "sha256:43a75fb72bfe30253b70f0598e612b577f71910f65bb254d1a2e0b83ac76275d", size = 70821, upload-time = "2025-09-02T13:29:33.003Z" },
 ]
 
 [[package]]
@@ -542,7 +542,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "dao-ai", specifier = ">=0.0.13" },
+    { name = "dao-ai", specifier = ">=0.0.15" },
     { name = "docling", specifier = ">=2.48.0" },
     { name = "langchain-text-splitters", specifier = ">=0.3.11" },
     { name = "llama-index", specifier = ">=0.13.3" },
